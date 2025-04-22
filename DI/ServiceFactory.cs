@@ -7,8 +7,8 @@ namespace DI
         private static Func<TService> GetServiceFunc(IServiceProvider serviceProvider)
         {
             var constructor = typeof(TImplementation).GetConstructors().First();
-            var GetService = typeof(IServiceProvider).GetMethod(nameof(IServiceProvider.GetService)) ?? throw new MissingMethodException(nameof(IServiceProvider), nameof(IServiceProvider.GetService));
-            var arguments = constructor.GetParameters().Select(p => Expression.Call(Expression.Constant(serviceProvider), GetService, Expression.Constant(p.ParameterType)));
+            var getService = typeof(IServiceProvider).GetMethod(nameof(IServiceProvider.GetService)) ?? throw new MissingMethodException(nameof(IServiceProvider), nameof(IServiceProvider.GetService));
+            var arguments = constructor.GetParameters().Select(p => Expression.Call(Expression.Constant(serviceProvider), getService, Expression.Constant(p.ParameterType)));
             return Expression.Lambda<Func<TService>>(Expression.New(constructor, arguments)).Compile();
         }
     }

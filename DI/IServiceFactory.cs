@@ -5,7 +5,7 @@
         public object GetService();
     }
 
-    public interface IServiceFactory<TService> : IServiceFactory
+    public interface IServiceFactory<out TService> : IServiceFactory
     {
         new TService GetService();
     }

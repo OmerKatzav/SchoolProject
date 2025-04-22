@@ -1,25 +1,23 @@
-﻿namespace DI
-{
-    public class SingletonCreator<TService>(IServiceFactory<TService> serviceFactory) : IServiceCreator<TService>
-    {
-        private TService? _instance;
-        private readonly object padlock = new object();
+﻿namespace DI;
 
-        public TService GetService()
-        {
-            if (_instance == null)
+public class SingletonCreator<TService>(IServiceFactory<TService> serviceFactory) : IServiceCreator<TService>
+{
+    private TService? _instance;
+    private readonly Lock _padlock = new();
+
+    public TService GetService()
+    {
+        if (_instance != null)
+            lock (_padlock)
             {
-                lock (padlock)
-                {
-                    if (_instance == null)
-                    {
-                        _instance = serviceFactory.GetService();
-                    }
-                }
+                return _instance;
             }
+        lock (_padlock)
+        {
+            _instance ??= serviceFactory.GetService();
             return _instance;
         }
-
-        object IServiceCreator.GetService() => GetService()!;
     }
+
+    object IServiceCreator.GetService() => GetService()!;
 }

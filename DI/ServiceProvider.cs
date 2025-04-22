@@ -27,10 +27,8 @@ namespace DI
             {
                 return ((IServiceCreator<TService>)serviceCreator).GetService();
             }
-            else
-            {
-                throw new InvalidOperationException($"Service of type {typeof(TService)} is not registered.");
-            }
+
+            throw new InvalidOperationException($"Service of type {nameof(TService)} is not registered.");
         }
 
         public object GetService(Type serviceType)
@@ -39,10 +37,13 @@ namespace DI
             {
                 return (serviceCreator).GetService();
             }
-            else
-            {
-                throw new InvalidOperationException($"Service of type {serviceType} is not registered.");
-            }
+
+            throw new InvalidOperationException($"Service of type {serviceType} is not registered.");
+        }
+
+        public IEnumerable<Type> GetRegisteredTypes()
+        {
+            return _serviceCreators.Keys;
         }
     }
 }

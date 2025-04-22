@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DI\DI.csproj" />
+    <ProjectReference Include="..\RPC\RPC.csproj" />
+  </ItemGroup>
+
 </Project>
