@@ -5,7 +5,7 @@ namespace Client
     internal class BolaAbrService(IClientConfigService configService, IMediaService mediaService) : IAbrService
     {
         public Task<byte[]> GetNewChunkAsync(Guid mediaId, ChunkMetadata metadata, int chunkIndex,
-            double currentTime, AuthToken authToken)
+            double currentTime, double bufferSize, AuthToken authToken)
         {
             var p = metadata.SecondsPerChunk;
             var qMax = configService.BolaConfig.MaxBufferSize;
@@ -17,8 +17,7 @@ namespace Client
             var vMax = configService.BolaConfig.VMaxCoef * v;
             var vDt = vMin + (vMax - vMin) * (currentTime / metadata.Length);
             var qI = utilities.Select(ui => vDt * (ui + gamma) / p);
-            var bitrateIndex = qI.Where(qi => qi < currentTime).OrderDescending().Select((_, index) => index)
-                .FirstOrDefault();
+            var bitrateIndex = qI.Where(qi => qi <= bufferSize).Select((_, index) => index).Max();
             return mediaService.GetChunk(authToken, mediaId, chunkIndex, bitrateIndex);
         }
     }
