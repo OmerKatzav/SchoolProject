@@ -1,11 +1,10 @@
 ﻿using SixLaborsCaptcha.Core;
 
-namespace Server
+namespace Server;
+
+internal class CaptchaConfig(SixLaborsCaptchaOptions captchaOptions, int length, TimeSpan expiration)
 {
-    internal class CaptchaConfig(SixLaborsCaptchaOptions captchaOptions, int length, TimeSpan expiration)
-    {
-        public SixLaborsCaptchaOptions CaptchaOptions { get; } = captchaOptions;
-        public int Length { get; } = length;
-        public TimeSpan Expiration { get; } = expiration;
-    }
+    public SixLaborsCaptchaOptions CaptchaOptions { get; } = captchaOptions;
+    public int Length { get; } = length;
+    public TimeSpan Expiration { get; } = expiration;
 }

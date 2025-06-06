@@ -1,11 +1,21 @@
 ﻿using ProtoBuf;
 
-namespace Shared
+namespace Shared;
+
+[ProtoContract]
+public class CaptchaToken : FullCaptchaData
 {
-    [ProtoContract]
-    public class CaptchaToken(byte[] captchaImage, DateTime expiration, string solution, byte[] signature) : FullCaptchaData(captchaImage, expiration, solution)
+    [ProtoMember(5)]
+    public byte[]? Signature { get; init; }
+
+    public CaptchaToken(FullCaptchaData fullCaptchaData, byte[] signature)
     {
-        [ProtoMember(4)]
-        public byte[] Signature { get; } = signature;
+        Signature = signature;
+        Solution = fullCaptchaData.Solution;
+        CaptchaImage = fullCaptchaData.CaptchaImage;
+        Expiration = fullCaptchaData.Expiration;
+        Nonce = fullCaptchaData.Nonce;
     }
+
+    public CaptchaToken() { }
 }

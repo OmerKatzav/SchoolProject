@@ -1,9 +1,8 @@
-﻿namespace Shared
+﻿namespace Shared;
+
+public class ChunkMetadata
 {
-    public class ChunkMetadata(double length, double secondsPerChunk, double[] chunkBitrates) 
-    {
-        public double Length { get; } = length;
-        public double SecondsPerChunk { get; } = secondsPerChunk;
-        public double[] ChunkBitrates { get; } = chunkBitrates;
-    }
+    public double Length { get; init; }
+    public double SecondsPerChunk { get; init; }
+    public int[,]? ChunkSizes { get; init; }
 }

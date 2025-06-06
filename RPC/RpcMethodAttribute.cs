@@ -1,8 +1,7 @@
-﻿namespace RPC
+﻿namespace RPC;
+
+[AttributeUsage(AttributeTargets.Method)]
+public class RpcMethodAttribute(uint id) : Attribute
 {
-    [AttributeUsage(AttributeTargets.Method)]
-    public class RpcMethodAttribute(uint id) : Attribute
-    {
-        public uint Id { get; } = id;
-    }
+    public uint Id { get; } = id;
 }

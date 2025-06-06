@@ -1,9 +1,12 @@
 ﻿using Shared;
 
-namespace Client
+namespace Client;
+
+internal interface IAbrService
 {
-    internal interface IAbrService
-    {
-        public Task<byte[]> GetNewChunkAsync(Guid mediaId, ChunkMetadata chunkMetadata, int chunkIndex, double currentTime, double bufferSize, AuthToken token);
-    }
+    public Task<int> GetNewChunkIdAsync(Guid mediaId, ChunkMetadata chunkMetadata, int chunkIndex, double currentTime, double bufferSize, double lastBandwidth);
+
+    public bool ShallAbandon(Guid mediaId, ChunkMetadata chunkMetadata, int chunkIndex, double currentTime, double bufferSize, int bitrateIndex, int bytesLeft);
+
+    public void StopMedia(Guid mediaId);
 }

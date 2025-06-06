@@ -1,11 +1,10 @@
-﻿namespace DI
+﻿namespace DI;
+
+public class TransientCreator<TService>(IServiceFactory<TService> serviceFactory) : IServiceCreator<TService>
 {
-    public class TransientCreator<TService>(IServiceFactory<TService> serviceFactory) : IServiceCreator<TService>
+    public TService GetService()
     {
-        public TService GetService()
-        {
-            return serviceFactory.GetService();
-        }
-        object IServiceCreator.GetService() => GetService()!;
+        return serviceFactory.GetService();
     }
+    object IServiceCreator.GetService() => GetService()!;
 }

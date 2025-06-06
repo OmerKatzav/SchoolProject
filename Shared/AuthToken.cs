@@ -1,11 +1,23 @@
 ﻿using ProtoBuf;
 
-namespace Shared
+namespace Shared;
+
+[ProtoContract]
+public class AuthToken : AuthTokenData
 {
-    [ProtoContract]
-    public class AuthToken(Guid userId, DateTime expiration, byte[] signature) : UserData(userId, expiration)
+    [ProtoMember(3)]
+    public byte[]? Signature { get; init; }
+
+    public AuthToken(AuthTokenData authTokenData, byte[] signature)
     {
-        [ProtoMember(3)]
-        public byte[] Signature { get; } = signature;
+        UserId = authTokenData.UserId;
+        Expiration = authTokenData.Expiration;
+        IssuedAt = authTokenData.IssuedAt;
+        ExtraData = authTokenData.ExtraData;
+        Nonce = authTokenData.Nonce;
+        Purpose = authTokenData.Purpose;
+        Signature = signature;
     }
+
+    public AuthToken() { }
 }

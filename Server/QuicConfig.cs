@@ -1,9 +1,8 @@
 ﻿using System.Net.Quic;
 
-namespace Server
+namespace Server;
+
+internal class QuicConfig(QuicListenerOptions listenerOptions)
 {
-    internal class QuicConfig(QuicListenerOptions listenerOptions)
-    {
-        public QuicListenerOptions ListenerOptions { get; } = listenerOptions;
-    }
+    public QuicListenerOptions ListenerOptions { get; } = listenerOptions;
 }

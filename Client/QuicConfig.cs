@@ -1,9 +1,9 @@
 ﻿using System.Net.Quic;
 
-namespace Client
+namespace Client;
+
+internal class QuicConfig(QuicClientConnectionOptions connectionOptions, int chunkSize)
 {
-    internal class QuicConfig(QuicClientConnectionOptions connectionOptions)
-    {
-        public QuicClientConnectionOptions ConnectionOptions { get; } = connectionOptions;
-    }
+    public QuicClientConnectionOptions ConnectionOptions { get; } = connectionOptions;
+    public int ChunkSize { get; } = chunkSize;
 }

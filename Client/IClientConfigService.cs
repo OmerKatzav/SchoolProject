@@ -1,8 +1,8 @@
-﻿namespace Client
+﻿namespace Client;
+
+internal interface IClientConfigService
 {
-    internal interface IClientConfigService
-    {
-        public QuicConfig QuicConfig { get; set; }
-        public BolaConfig BolaConfig { get; set; }
-    }
+    public QuicConfig? QuicConfig { get; set; }
+    public BolaConfig? BolaConfig { get; set; }
+    public TokenStorageConfig? TokenStorageConfig { get; set; }
 }

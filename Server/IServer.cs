@@ -1,8 +1,7 @@
-﻿namespace Server
+﻿namespace Server;
+
+internal interface IServer
 {
-    internal interface IServer
-    {
-        public Task StartAsync();
-        public Task StopAsync();
-    }
+    public Task StartAsync();
+    public Task StopAsync();
 }

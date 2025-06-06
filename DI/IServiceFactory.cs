@@ -1,12 +1,11 @@
-﻿namespace DI
-{
-    public interface IServiceFactory
-    {
-        public object GetService();
-    }
+﻿namespace DI;
 
-    public interface IServiceFactory<out TService> : IServiceFactory
-    {
-        new TService GetService();
-    }
+public interface IServiceFactory
+{
+    public object GetService();
+}
+
+public interface IServiceFactory<out TService> : IServiceFactory
+{
+    new TService GetService();
 }
