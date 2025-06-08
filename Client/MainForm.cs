@@ -10,10 +10,11 @@ public partial class MainForm : Form
     private readonly DI.IServiceProvider _serviceProvider;
     private WaveOutEvent? _outputDevice;
     private WaveFileReader? _currentReader;
+    private WaveFileReader? _nextReader;
     private int _currentChunkIndex;
     private double? _totalTime;
     private double? _secondsPerChunk;
-    private byte[]?[]? _mediaChunks;
+    private bool[]? _mediaChunks;
     private Guid _mediaId;
     private CancellationTokenSource? _playbackCts;
     private bool _isPaused;
@@ -22,7 +23,16 @@ public partial class MainForm : Form
     {
         get
         {
-            return _outputDevice is null ? 0 : _currentChunkIndex * _secondsPerChunk!.Value + _currentReader!.CurrentTime.TotalSeconds;
+            double chunkProgress;
+            try
+            {
+                chunkProgress = _currentReader is null ? 0 : _currentReader.CurrentTime.TotalSeconds;
+            }
+            catch (NullReferenceException)
+            {
+                chunkProgress = 0;
+            }
+            return (_secondsPerChunk is null ? 0 : _currentChunkIndex * _secondsPerChunk.Value) + chunkProgress;
         }
         set
         {
@@ -31,9 +41,14 @@ public partial class MainForm : Form
             {
                 throw new ArgumentOutOfRangeException(nameof(value), @"Current time is out of range");
             }
-            _currentChunkIndex = newChunkIndex;
-            StartNextChunk().GetAwaiter().GetResult();
-            _currentReader!.CurrentTime = TimeSpan.FromSeconds((long)(value - _currentChunkIndex * _secondsPerChunk!.Value));
+
+            if (newChunkIndex != _currentChunkIndex)
+            {
+                _currentChunkIndex = newChunkIndex;
+                StartNextChunk().GetAwaiter().GetResult();
+            }
+            
+            if (_currentReader is not null) _currentReader.CurrentTime = TimeSpan.FromSeconds((long)(value - _currentChunkIndex * _secondsPerChunk!.Value));
         }
     }
 
@@ -48,6 +63,9 @@ public partial class MainForm : Form
         try
         {
             await ReloadMedias();
+            if (!await _serviceProvider.GetService<ILoginService>().IsAdminAsync(_serviceProvider.GetService<ITokenStorageService>().AuthToken!)) return;
+            addMediaButton.Visible = true;
+            removeMediaBtn.Visible = true;
         }
         catch (Exception ex)
         {
@@ -110,37 +128,55 @@ public partial class MainForm : Form
             {
                 await _playbackCts.CancelAsync();
             }
+            _outputDevice?.Stop();
+
             _mediaId = (Guid)selectedItem.Tag!;
             _playbackCts = new CancellationTokenSource();
-            Task.Run(async () =>
+            var mediaService = _serviceProvider.GetService<IMediaService>();
+            var tokenStorageService = _serviceProvider.GetService<ITokenStorageService>();
+            var authToken = tokenStorageService.AuthToken;
+            if (authToken is null || !await _serviceProvider.GetService<ILoginService>().ValidateTokenAsync(authToken))
+            {
+                throw new InvalidOperationException(@"You must be logged in to play media.");
+            }
+
+            var chunkMetadata = await mediaService.GetChunkMetadataAsync(authToken, _mediaId);
+            _totalTime = chunkMetadata.Length;
+            _secondsPerChunk = chunkMetadata.SecondsPerChunk;
+            _mediaChunks = new bool[(int)Math.Ceiling(chunkMetadata.Length / chunkMetadata.SecondsPerChunk)];
+            try
+            {
+                if (Directory.Exists("TempDownloads")) Directory.Delete("TempDownloads", true);
+            }
+            catch (IOException) { }
+            Directory.CreateDirectory($"TempDownloads/{_mediaId}");
+            var abrService = _serviceProvider.GetService<IAbrService>();
+            double lastBandwidth = 0;
+            _playbackCts.Token.Register(() => abrService.StopMedia(_mediaId));
+            _currentChunkIndex = 0;
+            _ = Task.Run(async () =>
             {
                 try
                 {
                     _playbackCts.Token.ThrowIfCancellationRequested();
-                    var mediaService = _serviceProvider.GetService<IMediaService>();
-                    var tokenStorageService = _serviceProvider.GetService<ITokenStorageService>();
-                    var authToken = tokenStorageService.AuthToken;
-                    if (authToken is null || !await _serviceProvider.GetService<ILoginService>().ValidateTokenAsync(authToken))
-                    {
-                        throw new InvalidOperationException(@"You must be logged in to play media.");
-                    }
-                    var chunkMetadata = await mediaService.GetChunkMetadataAsync(authToken, _mediaId);
-                    _totalTime = chunkMetadata.Length;
-                    _secondsPerChunk = chunkMetadata.SecondsPerChunk;
-                    _mediaChunks = new byte[]?[(int)Math.Ceiling(chunkMetadata.Length / chunkMetadata.SecondsPerChunk)];
-                    var abrService = _serviceProvider.GetService<IAbrService>();
-                    double lastBandwidth = 0;
-                    _playbackCts.Token.Register(() => abrService.StopMedia(_mediaId));
                     while (true)
                     {
                         for (var i = 0; i < _currentChunkIndex; i++)
                         {
-                            _mediaChunks[i] = null;
+                            _mediaChunks[i] = false;
+                            try
+                            {
+                                File.Delete($"TempDownloads/{_mediaId}/{i}");
+                            }
+                            catch (Exception)
+                            {
+                                // ignored
+                            }
                         }
                         var downloadChunkIndex = -1;
-                        for (var chunkIndex = _currentChunkIndex + 1; chunkIndex < _mediaChunks.Length; chunkIndex++)
+                        for (var chunkIndex = _currentChunkIndex; chunkIndex < _mediaChunks.Length; chunkIndex++)
                         {
-                            if (_mediaChunks[chunkIndex] is not null) continue;
+                            if (_mediaChunks[chunkIndex]) continue;
                             downloadChunkIndex = chunkIndex;
                             break;
                         }
@@ -174,11 +210,11 @@ public partial class MainForm : Form
 
                         await FFMpegArguments
                             .FromPipeInput(new StreamPipeSource(new MemoryStream(newChunk)))
-                            .OutputToPipe(new StreamPipeSink(ffmpegStream), o => o.ForceFormat("wav"))
+                            .OutputToFile($"TempDownloads/{_mediaId}/{downloadChunkIndex}", true, o => o.ForceFormat("wav").WithCustomArgument("-c:a pcm_s16le"))
                             .ProcessAsynchronously();
 
-                        ffmpegStream.Seek(0, SeekOrigin.Begin);
-                        _mediaChunks[downloadChunkIndex] = ffmpegStream.ToArray();
+                        _mediaChunks[downloadChunkIndex] = true;
+                        if (_nextReader is null && File.Exists($"TempDownloads/{_mediaId}/{downloadChunkIndex + 1}")) _nextReader = new WaveFileReader($"TempDownloads/{_mediaId}/{downloadChunkIndex + 1}");
                     }
 
                 }
@@ -191,10 +227,6 @@ public partial class MainForm : Form
 
             _currentChunkIndex = 0;
             await StartNextChunk();
-
-            playbackBar.Enabled = true;
-            playbackBar.Value = 0;
-            playbackBar.Maximum = (int)Math.Ceiling(_totalTime ?? throw new InvalidOperationException("Total time is null"));
 
             pauseBtn.Enabled = true;
             _isPaused = false;
@@ -214,14 +246,38 @@ public partial class MainForm : Form
         _outputDevice?.Dispose();
         _outputDevice = new WaveOutEvent();
         _currentReader?.Dispose();
-        while (_mediaChunks![_currentChunkIndex] is null) await Task.Delay(100);
-        _currentReader = new WaveFileReader(new MemoryStream(_mediaChunks![_currentChunkIndex]!));
-        _outputDevice.PlaybackStopped += async (_, _) =>
+        _currentReader = null;
+        while (!_mediaChunks![_currentChunkIndex]) await Task.Delay(100);
+        if (_nextReader is null) _currentReader = new WaveFileReader($"TempDownloads/{_mediaId}/{_currentChunkIndex}");
+        else
         {
-            if (_outputDevice!.PlaybackState != PlaybackState.Stopped) return;
-            _currentChunkIndex++;
-            await StartNextChunk();
-        };
+            _currentReader = _nextReader;
+            _nextReader = null;
+            if (File.Exists($"TempDownloads/{_mediaId}/{_currentChunkIndex + 1}")) _nextReader = new WaveFileReader($"TempDownloads/{_mediaId}/{_currentChunkIndex + 1}");
+        }
+        _outputDevice.PlaybackStopped += async (_, _) =>
+            {
+
+                if (_outputDevice!.PlaybackState != PlaybackState.Stopped) return;
+                _currentChunkIndex++;
+                if (_currentChunkIndex >= _mediaChunks!.Length)
+                {
+                    _outputDevice?.Dispose();
+                    _outputDevice = null;
+                    _currentReader?.Dispose();
+                    _currentReader = null;
+                    pauseBtn.Enabled = false;
+                    if (_playbackCts is not null) await _playbackCts.CancelAsync();
+                    if (!Directory.Exists("TempDownloads")) return;
+                    try
+                    {
+                        Directory.Delete("TempDownloads", true);
+                    }
+                    catch (IOException) {}
+                    return;
+                }
+                await StartNextChunk();
+            };
         _outputDevice.Init(_currentReader);
         _outputDevice.Play();
     }
@@ -241,11 +297,48 @@ public partial class MainForm : Form
         }
     }
 
-    private void playbackBar_Scroll(object sender, EventArgs e)
+    private async void addMediaButton_Click(object sender, EventArgs e)
     {
-        var wantedTime = playbackBar.Value / (double)playbackBar.Maximum * (_totalTime ?? throw new InvalidOperationException("Total time is null"));
-        if (wantedTime < 0 || wantedTime > _totalTime) return;
-        CurrentTime = wantedTime;
-        if (_isPaused) _outputDevice?.Pause();
+        try
+        {
+            var addMediaForm = new AddMediaForm(_serviceProvider);
+            addMediaForm.ShowDialog(this);
+            if (addMediaForm.DialogResult == DialogResult.OK) await ReloadMedias();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($@"An error occurred while adding media: {ex.Message}", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private async void removeMediaBtn_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            if (mediaListView.SelectedItems.Count == 0)
+            {
+                MessageBox.Show(@"Please select a media to remove.", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            var selectedItem = mediaListView.SelectedItems[0];
+            var mediaId = (Guid)selectedItem.Tag!;
+            var mediaService = _serviceProvider.GetService<IMediaService>();
+            var tokenStorageService = _serviceProvider.GetService<ITokenStorageService>();
+            var authToken = tokenStorageService.AuthToken;
+            if (authToken is null || !await _serviceProvider.GetService<ILoginService>().ValidateTokenAsync(authToken))
+            {
+                MessageBox.Show(@"You must be logged in to remove media.", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            await mediaService.RemoveMediaAsync(authToken, mediaId);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($@"An error occurred while removing media: {ex.Message}", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            await ReloadMedias();
+        }
     }
 }

@@ -34,12 +34,13 @@ internal class MinioStoreService(IMinioClient minioClient) : IStoreService
 
     public async Task<Stream> RetrieveAsync(string bucket, string key)
     {
-        var returnStream = Stream.Null;
+        var returnStream = new MemoryStream();
         await minioClient.GetObjectAsync(new GetObjectArgs()
             .WithBucket(bucket)
             .WithObject(key)
-            .WithCallbackStream(stream => returnStream = stream)
+            .WithCallbackStream(stream => stream.CopyTo(returnStream))
         );
+        returnStream.Position = 0;
         return returnStream;
     }
 }

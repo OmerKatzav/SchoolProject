@@ -24,6 +24,9 @@ internal class CryptoService(IServerConfigService configService) : ICryptoServic
         {
             AssociatedData = [.. associatedData],
             Salt = [.. salt],
+            DegreeOfParallelism = CryptoConfig.ArgonDegreeOfParallelism,
+            MemorySize = CryptoConfig.ArgonMemorySize,
+            Iterations = CryptoConfig.ArgonIterations,
         };
         return argon.GetBytes(CryptoConfig.PasswordHashSize);
     }

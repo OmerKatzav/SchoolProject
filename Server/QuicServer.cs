@@ -19,9 +19,16 @@ internal class QuicServer(IServerConfigService configService, IRequestHandler re
         _isRunning = true;
         while (_isRunning)
         {
-            var connection = await _listener.AcceptConnectionAsync();
-            logger.LogInformation("Accepted connection from {RemoteEndPoint}", connection.RemoteEndPoint);
-            _ = HandleConnectionAsync(connection);
+            try
+            {
+                var connection = await _listener.AcceptConnectionAsync();
+                logger.LogInformation("Accepted connection from {RemoteEndPoint}", connection.RemoteEndPoint);
+                _ = HandleConnectionAsync(connection);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error while accepting connection");
+            }
         }
     }
 

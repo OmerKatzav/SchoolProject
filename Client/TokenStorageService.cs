@@ -16,8 +16,10 @@ internal class TokenStorageService(IClientConfigService configService) : ITokenS
         }
         set
         {
+            var captchaToken = CaptchaToken;
+            TokenStorageConfig.StorageStream.SetLength(0);
             TokenStorageConfig.StorageStream.Position = 0;
-            Serializer.Serialize(TokenStorageConfig.StorageStream, new ValueTuple<AuthToken?, CaptchaToken?>(value, CaptchaToken));
+            Serializer.Serialize(TokenStorageConfig.StorageStream, new ValueTuple<AuthToken?, CaptchaToken?>(value, captchaToken));
             TokenStorageConfig.StorageStream.SetLength(TokenStorageConfig.StorageStream.Position);
         }
     }
@@ -31,8 +33,10 @@ internal class TokenStorageService(IClientConfigService configService) : ITokenS
         }
         set
         {
+            var authToken = AuthToken;
+            TokenStorageConfig.StorageStream.SetLength(0);
             TokenStorageConfig.StorageStream.Position = 0;
-            Serializer.Serialize(TokenStorageConfig.StorageStream, new ValueTuple<AuthToken?, CaptchaToken?>(AuthToken, value));
+            Serializer.Serialize(TokenStorageConfig.StorageStream, new ValueTuple<AuthToken?, CaptchaToken?>(authToken, value));
             TokenStorageConfig.StorageStream.SetLength(TokenStorageConfig.StorageStream.Position);
         }
     }

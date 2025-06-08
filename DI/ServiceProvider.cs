@@ -35,7 +35,7 @@ public class ServiceProvider : IServiceProvider
     {
         if (_serviceCreators.TryGetValue(serviceType, out var serviceCreator))
         {
-            return (serviceCreator).GetService();
+            return serviceCreator.GetService();
         }
 
         throw new InvalidOperationException($"Service of type {serviceType} is not registered.");

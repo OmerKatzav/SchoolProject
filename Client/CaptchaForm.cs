@@ -7,6 +7,7 @@ public partial class CaptchaForm : Form
     private readonly DI.IServiceProvider _serviceProvider;
     private byte[]? _captchaSignature;
     private CaptchaData? _captchaData;
+    private bool _isRefreshing;
 
     public CaptchaForm(DI.IServiceProvider serviceProvider)
     {
@@ -50,8 +51,17 @@ public partial class CaptchaForm : Form
     {
         try
         {
-            captchaExpirationLabel.Text = $@"Captcha expires in {_captchaData!.Expiration - DateTime.UtcNow:mm\:ss}";
-            if (DateTime.UtcNow >= _captchaData.Expiration) await RefreshCaptcha();
+            captchaExpirationLabel.Text = $@"Captcha expires in {_captchaData!.Expiration - DateTime.UtcNow:\mm:\ss}";
+            if (DateTime.UtcNow < _captchaData.Expiration || _isRefreshing) return;
+            _isRefreshing = true;
+            try
+            {
+                await RefreshCaptcha();
+            }
+            finally
+            {
+                _isRefreshing = false;
+            }
         }
         catch (Exception ex)
         {

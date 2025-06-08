@@ -30,7 +30,7 @@ internal class MediaService(IMediaInternalService mediaInternalService, ILoginSe
     {
         if (!await loginService.ValidateTokenAsync(authToken) || authToken.Purpose != AuthTokenPurpose.FullAccess)
             throw new ArgumentException("Invalid auth token.");
-        return [.. (await mediaInternalService.GetMediaThumbnailAsync(mediaId))];
+        return [.. await mediaInternalService.GetMediaThumbnailAsync(mediaId)];
     }
 
     public async Task<ChunkMetadata> GetChunkMetadataAsync(AuthToken authToken, Guid mediaId)
@@ -45,7 +45,7 @@ internal class MediaService(IMediaInternalService mediaInternalService, ILoginSe
     {
         if (!await loginService.ValidateTokenAsync(authToken) || authToken.Purpose != AuthTokenPurpose.FullAccess)
             throw new ArgumentException("Invalid auth token.");
-        return [.. (await mediaInternalService.GetChunkAsync(mediaId, chunkIndex, chunkBitrateIndex))];
+        return [.. await mediaInternalService.GetChunkAsync(mediaId, chunkIndex, chunkBitrateIndex)];
     }
 
     public async Task<Guid> InsertMediaAsync(AuthToken authToken, string name, byte[] thumbnail, byte[] media)

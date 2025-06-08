@@ -32,12 +32,12 @@
             mediaListView = new ListView();
             thumbnailImageList = new ImageList(components);
             playBtn = new Button();
-            playbackBar = new TrackBar();
             timeLabel = new Label();
             searchBox = new TextBox();
             label2 = new Label();
             pauseBtn = new Button();
-            ((System.ComponentModel.ISupportInitialize)playbackBar).BeginInit();
+            addMediaButton = new Button();
+            removeMediaBtn = new Button();
             SuspendLayout();
             // 
             // mediaListView
@@ -53,29 +53,18 @@
             // thumbnailImageList
             // 
             thumbnailImageList.ColorDepth = ColorDepth.Depth32Bit;
-            thumbnailImageList.ImageSize = new Size(16, 16);
+            thumbnailImageList.ImageSize = new Size(256, 256);
             thumbnailImageList.TransparentColor = Color.Transparent;
             // 
             // playBtn
             // 
-            playBtn.Location = new Point(12, 543);
+            playBtn.Location = new Point(12, 490);
             playBtn.Name = "playBtn";
             playBtn.Size = new Size(75, 23);
             playBtn.TabIndex = 1;
             playBtn.Text = "Play";
             playBtn.UseVisualStyleBackColor = true;
             playBtn.Click += playBtn_Click;
-            // 
-            // playbackBar
-            // 
-            playbackBar.Enabled = false;
-            playbackBar.Location = new Point(12, 492);
-            playbackBar.Maximum = 100;
-            playbackBar.Name = "playbackBar";
-            playbackBar.Size = new Size(810, 45);
-            playbackBar.TabIndex = 2;
-            playbackBar.TickStyle = TickStyle.None;
-            playbackBar.Scroll += playbackBar_Scroll;
             // 
             // timeLabel
             // 
@@ -106,7 +95,7 @@
             // pauseBtn
             // 
             pauseBtn.Enabled = false;
-            pauseBtn.Location = new Point(356, 543);
+            pauseBtn.Location = new Point(356, 490);
             pauseBtn.Name = "pauseBtn";
             pauseBtn.Size = new Size(75, 23);
             pauseBtn.TabIndex = 8;
@@ -114,22 +103,44 @@
             pauseBtn.UseVisualStyleBackColor = true;
             pauseBtn.Click += pauseBtn_Click;
             // 
+            // addMediaButton
+            // 
+            addMediaButton.Location = new Point(700, 490);
+            addMediaButton.Name = "addMediaButton";
+            addMediaButton.Size = new Size(104, 23);
+            addMediaButton.TabIndex = 9;
+            addMediaButton.Text = "Add New Media";
+            addMediaButton.UseVisualStyleBackColor = true;
+            addMediaButton.Visible = false;
+            addMediaButton.Click += addMediaButton_Click;
+            // 
+            // removeMediaBtn
+            // 
+            removeMediaBtn.Location = new Point(598, 490);
+            removeMediaBtn.Name = "removeMediaBtn";
+            removeMediaBtn.Size = new Size(96, 23);
+            removeMediaBtn.TabIndex = 10;
+            removeMediaBtn.Text = "Remove Media";
+            removeMediaBtn.UseVisualStyleBackColor = true;
+            removeMediaBtn.Visible = false;
+            removeMediaBtn.Click += removeMediaBtn_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(834, 610);
+            ClientSize = new Size(834, 523);
+            Controls.Add(removeMediaBtn);
+            Controls.Add(addMediaButton);
             Controls.Add(pauseBtn);
             Controls.Add(label2);
             Controls.Add(searchBox);
             Controls.Add(timeLabel);
-            Controls.Add(playbackBar);
             Controls.Add(playBtn);
             Controls.Add(mediaListView);
             Name = "MainForm";
             Text = "MainForm";
             Load += MainForm_Load;
-            ((System.ComponentModel.ISupportInitialize)playbackBar).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -138,11 +149,12 @@
 
         private ListView mediaListView;
         private Button playBtn;
-        private TrackBar playbackBar;
         private Label timeLabel;
         private TextBox searchBox;
         private Label label2;
         private ImageList thumbnailImageList;
         private Button pauseBtn;
+        private Button addMediaButton;
+        private Button removeMediaBtn;
     }
 }

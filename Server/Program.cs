@@ -33,14 +33,16 @@ var quicConnectionOptions = new QuicServerConnectionOptions
         ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile("server-cert.pfx", "PfxPassword")
     },
     DefaultCloseErrorCode = 0,
-    DefaultStreamErrorCode = 1
+    DefaultStreamErrorCode = 1,
+    IdleTimeout = TimeSpan.FromSeconds(30),
+    KeepAliveInterval = TimeSpan.FromSeconds(10)
 };
 DotEnv.Load();
 var dotenvVars = DotEnv.Read();
 var minioFactory = new MinioClientFactory(client => client
-    .WithEndpoint(dotenvVars["MINIO_ENDPOINT"])
+    .WithEndpoint(dotenvVars["MINIO_ENDPOINT"], int.Parse(dotenvVars["MINIO_PORT"]))
     .WithCredentials(dotenvVars["MINIO_ACCESS_KEY"], dotenvVars["MINIO_SECRET_KEY"])
-    .WithSSL());
+    .WithSSL(bool.Parse(dotenvVars["MINIO_USE_SSL"])));
 
 serviceProvider.RegisterSingleton<IServerConfigService>(() =>
 {
@@ -48,7 +50,7 @@ serviceProvider.RegisterSingleton<IServerConfigService>(() =>
     return new ServerConfigService
     {
         CaptchaConfig = new CaptchaConfig(new SixLaborsCaptchaOptions(), 6, TimeSpan.FromMinutes(2)),
-        CryptoConfig = new Server.CryptoConfig(ecdsa, HashAlgorithmName.SHA256, 32, 16),
+        CryptoConfig = new Server.CryptoConfig(ecdsa, HashAlgorithmName.SHA256, 32, 16, 4, 2097152, 1),
         DbConfig = new DbConfig(new DbContextOptionsBuilder().UseNpgsql(dotenvVars["NPGSQL_CONNECTION_STRING"]).Options),
         LoginConfig = new LoginConfig(
             TimeSpan.FromDays(7),
@@ -252,7 +254,7 @@ serviceProvider.RegisterSingleton<IServerConfigService>(() =>
                 return ValueTask.FromResult(quicConnectionOptions);
             }
         }),
-        EmailConfig = new EmailConfig("Project Team", dotenvVars["EMAIL_ADDRESS"], "smtp.google.com", 587, SecureSocketOptions.StartTls,
+        EmailConfig = new EmailConfig("Project Team", dotenvVars["EMAIL_ADDRESS"], "smtp.gmail.com", 587, SecureSocketOptions.StartTls,
             async () =>
             {
                 var clientSecrets = new ClientSecrets
@@ -277,22 +279,24 @@ serviceProvider.RegisterSingleton<IServerConfigService>(() =>
                 if (credential.Token.IsStale)
                     await credential.RefreshTokenAsync(CancellationToken.None);
 
-                return new SaslMechanismOAuthBearer(credential.UserId, credential.Token.AccessToken);
+                return new SaslMechanismOAuth2(credential.UserId, credential.Token.AccessToken);
             }),
-        MediaConfig = new MediaConfig("thumbnails", "chunks", [24000, 96000, 16000, 320000], 48000, 2, "libopus", "opus", "flac", "flac", "Transcodes", -14, -1.5, 11, (512, 512), new PngEncoder())
+        MediaConfig = new MediaConfig("thumbnails", "chunks", [24, 96, 160, 320], 48000, 2, "libopus", "opus", "flac", "flac", "Transcodes", -14, -1.5, 11, (512, 512), new PngEncoder())
     };
 });
 serviceProvider.RegisterSingleton(() => loggerFactory.CreateLogger(""));
 serviceProvider.RegisterSingleton(() => minioFactory.CreateClient());
 serviceProvider.RegisterSingleton<IRequestHandler, RpcRequestHandler>();
-serviceProvider.RegisterSingleton<DbContext, AppDbContext>();
+serviceProvider.RegisterSingleton<AppDbContext, AppDbContext>();
 serviceProvider.RegisterSingleton<ICryptoService, CryptoService>();
 serviceProvider.RegisterSingleton<ICaptchaService, CaptchaService>();
 serviceProvider.RegisterSingleton<IUserService, UserService>();
 serviceProvider.RegisterSingleton<IServer, QuicServer>();
 serviceProvider.RegisterSingleton<ILoginService, LoginService>();
+serviceProvider.RegisterSingleton<IStoreService, MinioStoreService>();
 serviceProvider.RegisterSingleton<IMediaInternalService, MediaInternalService>();
 serviceProvider.RegisterSingleton<IMediaService, MediaService>();
+serviceProvider.RegisterSingleton<IEmailService, EmailService>();
 
-await serviceProvider.GetService<DbContext>().Database.MigrateAsync();
+await serviceProvider.GetService<AppDbContext>().Database.MigrateAsync();
 await serviceProvider.GetService<IServer>().StartAsync();

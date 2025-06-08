@@ -25,13 +25,22 @@ public partial class SignUpForm : Form
             if (captchaToken is null || !await captchaService.ValidateCaptchaAsync(captchaToken))
             {
                 var captchaForm = new CaptchaForm(_serviceProvider);
-                captchaForm.ShowDialog(this);
-                if (captchaForm.DialogResult != DialogResult.OK)
+                try
                 {
-                    MessageBox.Show(@"Captcha validation failed or cancelled. Please try again.", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
+                    captchaForm.ShowDialog(this);
+                    if (captchaForm.DialogResult != DialogResult.OK)
+                    {
+                        MessageBox.Show(@"Captcha validation failed or cancelled. Please try again.", @"Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    captchaToken = tokenStorageService.CaptchaToken!;
                 }
-                captchaToken = tokenStorageService.CaptchaToken!;
+                finally
+                {
+                    captchaForm.Dispose();
+                }
             }
             await loginService.RegisterAsync(usernameBox.Text, passwordBox.Text, emailBox.Text, captchaToken);
             var emailCodeForm = new EmailCodeForm();

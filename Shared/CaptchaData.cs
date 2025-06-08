@@ -4,7 +4,6 @@ namespace Shared;
 
 [ProtoContract]
 [ProtoInclude(10, typeof(FullCaptchaData))]
-[ProtoInclude(20, typeof(CaptchaToken))]
 public class CaptchaData
 {
     [ProtoMember(1)]

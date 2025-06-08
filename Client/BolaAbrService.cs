@@ -6,7 +6,7 @@ namespace Client;
 internal class BolaAbrService(IClientConfigService configService) : IAbrService
 {
     private readonly ConcurrentDictionary<Guid, int[]> _mStar = [];
-    private readonly ConcurrentDictionary<Guid, BolaParams[]> _bolaParams = [];
+    private readonly ConcurrentDictionary<Guid, BolaParams?[]> _bolaParams = [];
     private BolaConfig BolaConfig => configService.BolaConfig ?? throw new ArgumentNullException(nameof(configService.BolaConfig));
 
     public async Task<int> GetNewChunkIdAsync(Guid mediaId, ChunkMetadata chunkMetadata, int chunkIndex, double currentTime, double bufferSize, double lastBandwidth)
@@ -29,7 +29,7 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
                 mStarValue[chunkIndex] = i;
             }
         }
-        if (mStarValue[chunkIndex] > mStarValue[chunkIndex - 1])
+        if (chunkIndex == 0 || mStarValue[chunkIndex] >= mStarValue[chunkIndex - 1])
         {
             var mTag = parameters.S.Where(sM => sM / parameters.P <= Math.Max(lastBandwidth, parameters.S[0] / parameters.P)).Select((_, index) => index).Max();
             if (mTag >= mStarValue[chunkIndex]) mTag = mStarValue[chunkIndex];
@@ -42,13 +42,15 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
 
     public bool ShallAbandon(Guid mediaId, ChunkMetadata chunkMetadata, int chunkIndex, double currentTime, double bufferSize, int bitrateIndex, int bytesLeft)
     {
+        if (bitrateIndex == 0) return false;
         var parameters = GetParams(mediaId, chunkMetadata, chunkIndex);
         var t = Math.Min(currentTime, parameters.Length);
         var tTag = Math.Max(t / 2, 3 * parameters.P);
         var qDMax = Math.Min(parameters.QMax, tTag / parameters.P);
         var vD = (qDMax - 1) / (parameters.Utilities[^1] + parameters.Gamma * parameters.P);
         var rm = (vD * parameters.Utilities[bitrateIndex] + vD * parameters.Gamma * parameters.P - bufferSize) / bytesLeft;
-        return Enumerable.Range(0, chunkIndex - 1).Select(i => (vD * parameters.Utilities[i] + vD * parameters.Gamma * parameters.P - bufferSize) / parameters.S[i]).Any(rmTag => rmTag > rm);
+        //return Enumerable.Range(0, bitrateIndex - 1).Select(i => (vD * parameters.Utilities[i] + vD * parameters.Gamma * parameters.P - bufferSize) / parameters.S[i]).Any(rmTag => rmTag > rm);
+        return false;
     }
 
     public void StopMedia(Guid mediaId)
@@ -59,9 +61,9 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
 
     private BolaParams GetParams(Guid mediaId, ChunkMetadata metadata, int chunkIndex)
     {
-        if (_bolaParams.TryGetValue(mediaId, out var bolaParams))
+        if (_bolaParams.TryGetValue(mediaId, out var bolaParams) && chunkIndex < bolaParams.Length && bolaParams[chunkIndex] is not null)
         {
-            return bolaParams[chunkIndex];
+            return bolaParams[chunkIndex]!;
         }
         var p = metadata.SecondsPerChunk;
         var chunkSizes = metadata.ChunkSizes ?? throw new ArgumentNullException(nameof(metadata));
@@ -75,6 +77,6 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
         bolaParams = new BolaParams[(int)Math.Ceiling(length / p)];
         bolaParams[chunkIndex] = new BolaParams(p, s, qMax, utilities, gamma, length);
         _bolaParams.TryAdd(mediaId, bolaParams);
-        return bolaParams[chunkIndex];
+        return bolaParams[chunkIndex]!;
     }
 }

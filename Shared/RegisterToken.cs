@@ -1,7 +1,11 @@
-﻿namespace Shared;
+﻿using ProtoBuf;
 
+namespace Shared;
+
+[ProtoContract]
 public class RegisterToken : RegisterData
 {
+    [ProtoMember(5)]
     public byte[]? Signature { get; init; }
 
     public RegisterToken(RegisterData registerData, byte[] signature)

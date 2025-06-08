@@ -42,6 +42,7 @@
             captchaPictureBox.Location = new Point(12, 12);
             captchaPictureBox.Name = "captchaPictureBox";
             captchaPictureBox.Size = new Size(337, 209);
+            captchaPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
             captchaPictureBox.TabIndex = 0;
             captchaPictureBox.TabStop = false;
             // 

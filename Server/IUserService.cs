@@ -15,7 +15,6 @@ internal interface IUserService
     public Task SetUsernameAsync(Guid userId, string username);
     public Task SetEmailAsync(Guid userId, string email);
     public Task SetPasswordAsync(Guid userId, string password);
-    public (byte[], byte[]) HashPassword(string password);
     public Task<Guid> AddUserAsync(string username, string password, string email, bool isAdmin);
     public Task RemoveUserAsync(Guid userId);
     public Task<bool> IsAdminAsync(Guid userId);

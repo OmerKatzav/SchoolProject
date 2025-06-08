@@ -42,13 +42,14 @@ internal class MediaInternalService(IStoreService storeService, AppDbContext dbC
     {
         var thumbnailStream = await storeService.RetrieveAsync(MediaConfig.ThumbnailBucketName, mediaId.ToString());
         var buffer = new byte[thumbnailStream.Length];
-        await thumbnailStream.ReadExactlyAsync(buffer, 0, (int)thumbnailStream.Length);
+        await thumbnailStream.ReadExactlyAsync(buffer, 0, buffer.Length);
         return buffer;
     }
 
     public async Task<ChunkMetadata> GetChunkMetadataAsync(Guid mediaId)
     {
         var media = await dbContext.Medias.FindAsync(mediaId) ?? throw new ArgumentException("Media not found");
+
         return new ChunkMetadata
         {
             ChunkSizes = media.ChunkSizes,
@@ -61,7 +62,7 @@ internal class MediaInternalService(IStoreService storeService, AppDbContext dbC
     {
         var chunkStream = await storeService.RetrieveAsync(MediaConfig.ChunkBucketName, $"{mediaId}/{chunkIndex}/{chunkBitrateIndex}");
         var buffer = new byte[chunkStream.Length];
-        await chunkStream.ReadExactlyAsync(buffer, 0, (int)chunkStream.Length);
+        await chunkStream.ReadExactlyAsync(buffer, 0, buffer.Length);
         return buffer;
     }
 
@@ -104,7 +105,8 @@ internal class MediaInternalService(IStoreService storeService, AppDbContext dbC
         var mediaId = Guid.NewGuid();
         var mediaPath = Path.Combine(MediaConfig.TempPath, mediaId.ToString());
 
-        Directory.Delete(mediaPath, true);
+        if (Directory.Exists(mediaPath)) Directory.Delete(mediaPath, true);
+        Directory.CreateDirectory(mediaPath);
 
         var bestAudioIndex = 0;
         var stereoStreamIndices = analysis.AudioStreams.Select((_, i) => i).Where(i => analysis.AudioStreams[i].Channels == 2).ToArray();
@@ -112,42 +114,49 @@ internal class MediaInternalService(IStoreService storeService, AppDbContext dbC
         foreach (var audioIndex in stereoStreamIndices)
             if (analysis.AudioStreams[audioIndex].BitRate > analysis.AudioStreams[bestAudioIndex].BitRate) bestAudioIndex = audioIndex;
 
-        var bitrates = MediaConfig.Bitrates.Where(bitrate => bitrate < analysis.AudioStreams[bestAudioIndex].BitRate).ToArray();
+        var bitrates = MediaConfig.Bitrates.Where(bitrate => bitrate < analysis.AudioStreams[bestAudioIndex].BitRate || analysis.AudioStreams[bestAudioIndex].BitRate == 0).ToArray();
 
         var jobs = new List<Task>();
         await FFMpegArguments
-            .FromPipeInput(new StreamPipeSource(mediaStream),
-                o => o.SelectStream(bestAudioIndex, channel: Channel.Audio))
-            .MultiOutput(o =>
-            {
-                var newO = o.OutputToFile(Path.Combine(mediaPath, $"%d_{MediaConfig.Bitrates.Length}"), true, a => a
-                    .WithAudioCodec(MediaConfig.LosslessAudioCodec)
-                    .WithCustomArgument("-f segment")
-                    .WithCustomArgument($"-segment time {MediaConfig.SecondsPerChunk}")
-                    .WithCustomArgument("-reset_timestamps 1")
-                    .WithCustomArgument(normString)
-                    .ForceFormat(MediaConfig.LosslessAudioContainer));
-                for (var bitrateIndex = 0; bitrateIndex < bitrates.Length; bitrateIndex++)
-                {
-                    var bitrate = bitrates[bitrateIndex];
-                    newO.OutputToFile(Path.Combine(mediaPath, $"%d_{bitrateIndex}"), true, a => a
-                        .WithAudioCodec(MediaConfig.AudioCodec)
-                        .WithAudioBitrate(bitrate)
-                        .WithAudioSamplingRate(MediaConfig.SampleRate)
-                        .WithCustomArgument("-f segment")
-                        .WithCustomArgument($"-segment time {MediaConfig.SecondsPerChunk}")
-                        .WithCustomArgument("-reset_timestamps 1")
-                        .WithCustomArgument(normString)
-                        .ForceFormat(MediaConfig.AudioCodecContainer));
-                }
-            })
+            .FromPipeInput(new StreamPipeSource(mediaStream))
+            .OutputToFile(Path.Combine(mediaPath, $"%d_{MediaConfig.Bitrates.Length}"), true, a => a
+                .SelectStream(bestAudioIndex, channel:Channel.Audio)
+                .WithAudioCodec(MediaConfig.LosslessAudioCodec)
+                .WithCustomArgument($"-segment_format {MediaConfig.LosslessAudioContainer}")
+                .WithCustomArgument($"-segment_time {MediaConfig.SecondsPerChunk}")
+                .WithCustomArgument("-reset_timestamps 1")
+                .WithCustomArgument(normString)
+                .ForceFormat("segment"))
             .ProcessAsynchronously();
+
+        mediaStream.Position = 0;
+
+        for (var bitrateIndex = 0; bitrateIndex < bitrates.Length; bitrateIndex++)
+        {
+            var bitrate = bitrates[bitrateIndex];
+            await FFMpegArguments
+                .FromPipeInput(new StreamPipeSource(mediaStream))
+                .OutputToFile(Path.Combine(mediaPath, $"%d_{bitrateIndex}"), true, a => a
+                    .SelectStream(bestAudioIndex, channel: Channel.Audio)
+                    .WithCustomArgument("-ac 2")
+                    .WithAudioCodec(MediaConfig.AudioCodec)
+                    .WithAudioBitrate(bitrate)
+                    .WithAudioSamplingRate(MediaConfig.SampleRate)
+                    .WithCustomArgument($"-segment_time {MediaConfig.SecondsPerChunk}")
+                    .WithCustomArgument("-reset_timestamps 1")
+                    .WithCustomArgument($"-segment_format {MediaConfig.AudioCodecContainer}")
+                    .WithCustomArgument(normString)
+                    .ForceFormat("segment"))
+                .ProcessAsynchronously();
+            mediaStream.Position = 0;
+        }
 
         foreach (var file in Directory.GetFiles(mediaPath))
         {
             var id = Path.GetFileName(file).Split('_');
             var chunkIndex = id[0];
             var chunkBitrateIndex = id[1];
+            if (int.Parse(chunkIndex) > chunkSizes.GetLength(0)) continue;
             chunkSizes[int.Parse(chunkIndex), int.Parse(chunkBitrateIndex)] = (int)new FileInfo(file).Length;
             jobs.Add(storeService.StoreAsync(MediaConfig.ChunkBucketName, $"{mediaId}/{chunkIndex}/{chunkBitrateIndex}", file));
         }

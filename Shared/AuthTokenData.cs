@@ -22,5 +22,5 @@ public class AuthTokenData
     public byte[]? Nonce { get; init; }
 
     [ProtoMember(6)]
-    public AuthTokenPurpose Purpose { get; init; } = AuthTokenPurpose.FullAccess;
+    public AuthTokenPurpose Purpose { get; init; }
 }

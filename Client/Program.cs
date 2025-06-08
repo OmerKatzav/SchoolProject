@@ -24,7 +24,7 @@ internal static class Program
 
         if (!QuicConnection.IsSupported) throw new NotSupportedException("QUIC is not supported on this platform");
 
-        var serverCert = new X509Certificate2("server_cert.pem");
+        var serverCert = X509CertificateLoader.LoadCertificateFromFile("server_cert.pem");
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         GlobalFFOptions.Configure(options => options.BinaryFolder = "./ffmpeg_bin");
 
@@ -41,6 +41,8 @@ internal static class Program
                         RemoteEndPoint = new IPEndPoint(IPAddress.Loopback, 1234),
                         DefaultCloseErrorCode = 0,
                         DefaultStreamErrorCode = 1,
+                        IdleTimeout = TimeSpan.FromSeconds(30),
+                        KeepAliveInterval = TimeSpan.FromSeconds(10),
                         ClientAuthenticationOptions = new SslClientAuthenticationOptions
                         {
                             ApplicationProtocols = [new SslApplicationProtocol("project/1.0")],
@@ -62,14 +64,12 @@ internal static class Program
         serviceProvider.RegisterRpcSingleton<ILoginService>();
         serviceProvider.RegisterRpcSingleton<IMediaService>();
 
-        serviceProvider.GetService<INetworkService>().StartAsync().GetAwaiter().GetResult();
-
         var token = serviceProvider.GetService<ITokenStorageService>().AuthToken;
 
         ApplicationConfiguration.Initialize();
-        var loginForm = new LoginForm(serviceProvider);
         if (token is null || !serviceProvider.GetService<ILoginService>().ValidateTokenAsync(token).Result)
         {
+            var loginForm = new LoginForm(serviceProvider);
             Application.Run(loginForm);
             if (loginForm.DialogResult != DialogResult.OK)
             {

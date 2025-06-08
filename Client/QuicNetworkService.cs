@@ -10,6 +10,7 @@ internal class QuicNetworkService(IClientConfigService configService, ILogger lo
 {
     private QuicConnection? _connection;
     private QuicConfig QuicConfig => configService.QuicConfig ?? throw new ArgumentNullException(nameof(configService.QuicConfig));
+    private bool _hasFailed;
 
     public async Task StartAsync()
     {
@@ -20,8 +21,12 @@ internal class QuicNetworkService(IClientConfigService configService, ILogger lo
 
     public async Task<IEnumerable<byte>> RequestAsync(IEnumerable<byte> data, Action<CallMetadata>? callback = null, CancellationToken ctx = default)
     {
-        if (_connection == null) throw new InvalidOperationException("Connection is not established");
-        var stream = await _connection.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, ctx);
+        if (_connection == null || _hasFailed)
+        {
+            await StartAsync();
+            _hasFailed = false;
+        }
+        var stream = await _connection!.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, ctx);
         logger.LogInformation("Opened stream to {RemoteEndPoint}", _connection.RemoteEndPoint);
         var metadata = new CallMetadata
         {
@@ -47,6 +52,11 @@ internal class QuicNetworkService(IClientConfigService configService, ILogger lo
                 metadata.ResponseBandwidth = metadata.ResponseBytesRead / sw.Elapsed.TotalSeconds;
                 callback?.Invoke(metadata);
             });
+        }
+        catch (QuicException exception)
+        {
+            _hasFailed = true;
+            throw new QuicException(exception.QuicError, exception.ApplicationErrorCode, exception.Message);
         }
         finally
         {

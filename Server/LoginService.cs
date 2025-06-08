@@ -57,7 +57,8 @@ internal class LoginService(IServerConfigService configService, IUserService use
         var expiration = token.Expiration;
         var userId = token.UserId;
         using var ms = new MemoryStream();
-        Serializer.Serialize<AuthTokenData>(ms, token);
+        var authTokenData = new AuthTokenData { Expiration = token.Expiration, ExtraData = token.ExtraData, IssuedAt = token.IssuedAt, Nonce = token.Nonce, Purpose = token.Purpose, UserId = token.UserId };
+        Serializer.Serialize(ms, authTokenData);
         return await userService.IsUserIdTakenAsync(userId) && DateTime.UtcNow < expiration && token.IssuedAt > await userService.GetPasswordLastChangedAsync(userId) && cryptoService.VerifySignature(ms.ToArray(), signature);
     }
 
@@ -66,7 +67,8 @@ internal class LoginService(IServerConfigService configService, IUserService use
         var signature = token.Signature!;
         var expiration = token.Expiration;
         using var ms = new MemoryStream();
-        Serializer.Serialize<RegisterData>(ms, token);
+        var registerData = new RegisterData { Username = token.Username, Email = token.Email, Expiration = token.Expiration, Nonce = token.Nonce };
+        Serializer.Serialize(ms, registerData);
         return DateTime.UtcNow < expiration && cryptoService.VerifySignature(ms.ToArray(), signature);
     }
 
@@ -142,8 +144,7 @@ internal class LoginService(IServerConfigService configService, IUserService use
     private AuthToken GenerateNewToken(Guid userId, AuthTokenPurpose purpose = AuthTokenPurpose.FullAccess, byte[]? extraData = null)
     {
         var expiration = DateTime.UtcNow.Add(purpose == AuthTokenPurpose.FullAccess ? LoginConfig.Expiration : LoginConfig.TemporaryExpiration);
-        var authTokenData = new AuthTokenData
-        { UserId = userId, Expiration = expiration, Purpose = purpose, ExtraData = extraData, Nonce = [.. cryptoService.GenerateSalt()] };
+        var authTokenData = new AuthTokenData { UserId = userId, Expiration = expiration, IssuedAt = DateTime.UtcNow, Purpose = purpose, ExtraData = extraData, Nonce = [.. cryptoService.GenerateSalt()] };
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, authTokenData);
         var signature = cryptoService.SignBytes(ms.ToArray()).ToArray();

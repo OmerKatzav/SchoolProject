@@ -20,44 +20,58 @@ public class RpcRequestHandler(DI.IServiceProvider serviceProvider, ILogger logg
             var method = GetMethod(methodId, service);
             var args = DeserializeArgs(requestArr.Skip(8), method);
             var instance = serviceProvider.GetService(service);
-            if (method.GetParameters().Any(info => info.ParameterType.IsAssignableFrom(typeof(CancellationToken)) || info.ParameterType.IsAssignableFrom(typeof(Action<CallMetadata>))))
+            if (method.GetParameters().Any(info =>
+                    info.ParameterType.IsAssignableFrom(typeof(CancellationToken)) ||
+                    info.ParameterType.IsAssignableFrom(typeof(Action<CallMetadata>))))
             {
                 var argsEnumerator = args.GetEnumerator();
-                args = [.. method.GetParameters().Select(param =>
-                {
-                    if (param.ParameterType.IsAssignableFrom(typeof(CancellationToken)))
-                        return CancellationToken.None; // Default cancellation token
-                    if (param.ParameterType.IsAssignableFrom(typeof(Action<CallMetadata>)))
-                        return (Action<CallMetadata>)(_ => { });
-                    var result = argsEnumerator.Current!;
-                    argsEnumerator.MoveNext();
-                    return result;
-                })];
+                args =
+                [
+                    .. method.GetParameters().Select(param =>
+                    {
+                        if (param.ParameterType.IsAssignableFrom(typeof(CancellationToken)))
+                            return CancellationToken.None; // Default cancellation token
+                        if (param.ParameterType.IsAssignableFrom(typeof(Action<CallMetadata>)))
+                            return (Action<CallMetadata>)(_ => { });
+                        argsEnumerator.MoveNext();
+                        return argsEnumerator.Current!;
+                    })
+                ];
             }
+
             var result = method.Invoke(instance, args);
-            if (result is not null && result.GetType().IsGenericType &&
-                result.GetType().GetGenericTypeDefinition() == typeof(Task<>))
-            {
-                var resultProp = result.GetType().GetProperty("Result");
-                if (resultProp == null) throw new InvalidOperationException("Result property not found on task result type");
-                result = resultProp.GetValue(result);
-            }
-            else if (result is Task task)
+            if (result is Task task)
             {
                 task.GetAwaiter().GetResult();
-                result = null;
+                if (result.GetType().IsGenericType)
+                {
+                    var resultProp = result.GetType().GetProperty("Result") ?? throw new InvalidOperationException("Result property not found on task result type");
+                    result = resultProp.GetValue(result);
+                }
+                else
+                {
+                    result = null;
+                }
             }
-                
+
             using var ms = new MemoryStream();
-            ms.Write([0], 0, 1);
+            ms.WriteByte(0);
             Serializer.Serialize(ms, result);
+            return ms.ToArray();
+        }
+        catch (TargetInvocationException ex)
+        {
+            logger.LogError(ex, "Error while handling request");
+            using var ms = new MemoryStream();
+            ms.WriteByte(1);
+            Serializer.Serialize(ms, new SerializableException(ex.InnerException!));
             return ms.ToArray();
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error while handling request");
             using var ms = new MemoryStream();
-            ms.Write([1], 0, 1);
+            ms.WriteByte(1);
             Serializer.Serialize(ms, new SerializableException(ex));
             return ms.ToArray();
         }
@@ -94,7 +108,9 @@ public class RpcRequestHandler(DI.IServiceProvider serviceProvider, ILogger logg
         var args = new List<object>();
         var argBytesArr = argBytes.ToArray();
         var offset = 0;
-        foreach (var parameter in method.GetParameters())
+        foreach (var parameter in method.GetParameters().Where(info =>
+                     !info.ParameterType.IsAssignableFrom(typeof(CancellationToken)) &&
+                     !info.ParameterType.IsAssignableFrom(typeof(Action<CallMetadata>))))
         {
             var length = BitConverter.ToInt32(argBytesArr.Skip(offset).Take(4).ToArray());
             offset += 4;

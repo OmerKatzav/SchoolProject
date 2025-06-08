@@ -11,7 +11,7 @@ public class RpcInterceptor(INetworkService networkService) : IAsyncInterceptor
         var ctx = CancellationToken.None;
         Action<CallMetadata>? callback = null;
         var args = invocation.Arguments.ToArray();
-        if (args.Any(arg => arg is CallMetadata))
+        if (args.Any(arg => arg is CancellationToken))
         {
             ctx = (CancellationToken)args.First(arg => arg is CancellationToken)!;
             args = [.. args.Where(arg => arg is not CancellationToken)];
@@ -35,7 +35,7 @@ public class RpcInterceptor(INetworkService networkService) : IAsyncInterceptor
         var ctx = CancellationToken.None;
         Action<CallMetadata>? callback = null;
         var args = invocation.Arguments.ToArray();
-        if (args.Any(arg => arg is CallMetadata))
+        if (args.Any(arg => arg is CancellationToken))
         {
             ctx = (CancellationToken)args.First(arg => arg is CancellationToken)!;
             args = [.. args.Where(arg => arg is not CancellationToken)];
@@ -59,7 +59,7 @@ public class RpcInterceptor(INetworkService networkService) : IAsyncInterceptor
         var ctx = CancellationToken.None;
         Action<CallMetadata>? callback = null;
         var args = invocation.Arguments.ToArray();
-        if (args.Any(arg => arg is CallMetadata))
+        if (args.Any(arg => arg is CancellationToken))
         {
             ctx = (CancellationToken)args.First(arg => arg is CancellationToken)!;
             args = [.. args.Where(arg => arg is not CancellationToken)];
@@ -96,7 +96,8 @@ public class RpcInterceptor(INetworkService networkService) : IAsyncInterceptor
         {
             using var stream = new MemoryStream();
             Serializer.Serialize(stream, arg);
-            data.AddRange(BitConverter.GetBytes(stream.Length));
+            stream.Position = 0;
+            data.AddRange(BitConverter.GetBytes((int)stream.Length));
             data.AddRange(stream.ToArray());
         }
         return data;

@@ -32,7 +32,8 @@ internal class CaptchaService(ICryptoService cryptoService, IServerConfigService
             var expiration = token.Expiration;
             if (token.CaptchaImage is null || token.Solution is null) throw new ArgumentNullException(nameof(token));
             using var ms = new MemoryStream();
-            Serializer.Serialize<FullCaptchaData>(ms, token);
+            var captchaData = new FullCaptchaData { CaptchaImage = token.CaptchaImage, Expiration = token.Expiration, Nonce = token.Nonce, Solution = token.Solution };
+            Serializer.Serialize(ms, captchaData);
             return DateTime.UtcNow < expiration && cryptoService.VerifySignature(ms.ToArray(), signature);
         });
     }

@@ -13,7 +13,7 @@ internal class UserService(AppDbContext dbContext, ICryptoService cryptoService)
     public async Task<Guid> GetUserIdByUsernameAsync(string username)
     {
         return await dbContext.Users
-            .Where(u => u.Username.Equals(username, StringComparison.InvariantCultureIgnoreCase))
+            .Where(u => u.Username.ToLower() == username.ToLower())
             .Select(u => u.Id)
             .FirstAsync();
     }
@@ -21,19 +21,19 @@ internal class UserService(AppDbContext dbContext, ICryptoService cryptoService)
     public async Task<Guid> GetUserIdByEmailAsync(string email)
     {
         return await dbContext.Users
-            .Where(u => u.Email.Equals(email, StringComparison.InvariantCultureIgnoreCase))
+            .Where(u => u.Email.ToLower() == email.ToLower())
             .Select(u => u.Id)
             .FirstAsync();
     }
 
     public async Task<bool> IsUsernameTakenAsync(string username)
     {
-        return await dbContext.Users.AnyAsync(u => u.Username.Equals(username, StringComparison.InvariantCultureIgnoreCase));
+        return await dbContext.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
     }
 
     public async Task<bool> IsEmailTakenAsync(string email)
     {
-        return await dbContext.Users.AnyAsync(u => u.Email.Equals(email, StringComparison.InvariantCultureIgnoreCase));
+        return await dbContext.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
     }
 
     public async Task<bool> IsUserIdTakenAsync(Guid userId)
@@ -50,7 +50,7 @@ internal class UserService(AppDbContext dbContext, ICryptoService cryptoService)
     public async Task<bool> IsValidAsync(Guid userId, string password)
     {
         var user = await dbContext.Users.FindAsync(userId) ?? throw new ArgumentException($"User with guid {userId} doesn't exist");
-        return user.PasswordHash == cryptoService.HashBytes(Encoding.UTF8.GetBytes(password), user.PasswordSalt, user.Id.ToByteArray());
+        return user.PasswordHash.SequenceEqual(cryptoService.HashBytes(Encoding.UTF8.GetBytes(password), user.PasswordSalt, user.Id.ToByteArray()));
     }
 
     public async Task<string> GetUsernameAsync(Guid userId)
@@ -89,13 +89,6 @@ internal class UserService(AppDbContext dbContext, ICryptoService cryptoService)
         user.PasswordSalt = salt;
         user.PasswordLastChanged = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
-    }
-
-    public (byte[], byte[]) HashPassword(string password)
-    {
-        var salt = cryptoService.GenerateSalt().ToArray();
-        var hash = cryptoService.HashBytes(Encoding.UTF8.GetBytes(password), salt, Guid.NewGuid().ToByteArray()).ToArray();
-        return (hash, salt);
     }
 
     public async Task<Guid> AddUserAsync(string username, string password, string email, bool isAdmin)
