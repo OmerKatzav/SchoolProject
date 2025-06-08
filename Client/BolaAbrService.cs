@@ -66,6 +66,8 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
             return bolaParams[chunkIndex]!;
         }
         var p = metadata.SecondsPerChunk;
+        var length = metadata.Length;
+        if (chunkIndex >= (int)Math.Ceiling(length / p)) throw new InvalidOperationException("Chunk index doesn't exist");
         var chunkSizes = metadata.ChunkSizes ?? throw new ArgumentNullException(nameof(metadata));
         var s = Enumerable.Range(0, chunkSizes.GetLength(1)).Select(j => chunkSizes[chunkIndex, j]).ToArray();
         var qMax = BolaConfig.MaxBufferSize / p;
@@ -73,7 +75,6 @@ internal class BolaAbrService(IClientConfigService configService) : IAbrService
         var utilities = s.Select(size => Math.Log((double)size / s[^1])).ToArray();
         var alpha = (s[0] * utilities[1] - s[1] * utilities[0]) / (s[1] - s[0]);
         var gamma = (utilities[^1] * qMin - alpha * qMax) / (qMax - qMin) / p;
-        var length = metadata.Length;
         bolaParams = new BolaParams[(int)Math.Ceiling(length / p)];
         bolaParams[chunkIndex] = new BolaParams(p, s, qMax, utilities, gamma, length);
         _bolaParams.TryAdd(mediaId, bolaParams);
