@@ -51,7 +51,7 @@ public partial class CaptchaForm : Form
     {
         try
         {
-            captchaExpirationLabel.Text = $@"Captcha expires in {_captchaData!.Expiration - DateTime.UtcNow:\mm:\ss}";
+            captchaExpirationLabel.Text = $@"Captcha expires in {_captchaData!.Expiration - DateTime.UtcNow}";
             if (DateTime.UtcNow < _captchaData.Expiration || _isRefreshing) return;
             _isRefreshing = true;
             try

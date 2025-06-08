@@ -40,13 +40,26 @@ public class RpcRequestHandler(DI.IServiceProvider serviceProvider, ILogger logg
             }
 
             var result = method.Invoke(instance, args);
-            if (result is Task task)
+            if (method.ReturnType.IsAssignableTo(typeof(Task)))
             {
-                task.GetAwaiter().GetResult();
-                if (result.GetType().IsGenericType)
+                ((Task)result!).GetAwaiter().GetResult();
+                if (method.ReturnType.IsGenericType)
                 {
-                    var resultProp = result.GetType().GetProperty("Result") ?? throw new InvalidOperationException("Result property not found on task result type");
-                    result = resultProp.GetValue(result);
+                    var voidTaskResultType =
+                        typeof(Task)
+                            .Assembly
+                            .GetType("System.Threading.Tasks.VoidTaskResult", throwOnError: false);
+                    if ((voidTaskResultType != null && method.ReturnType == voidTaskResultType) || method.ReturnType == typeof(Task))
+                    {
+                        result = null;
+                    }
+                    else
+                    {
+                        var resultProp = method.ReturnType.GetProperty("Result") ??
+                                         throw new InvalidOperationException(
+                                             "Result property not found on task result type");
+                        result = resultProp.GetValue(result);
+                    }
                 }
                 else
                 {

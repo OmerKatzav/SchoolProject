@@ -128,6 +128,8 @@ public partial class MainForm : Form
             {
                 await _playbackCts.CancelAsync();
             }
+
+            _currentChunkIndex = int.MaxValue - 1;
             _outputDevice?.Stop();
 
             _mediaId = (Guid)selectedItem.Tag!;
@@ -247,7 +249,7 @@ public partial class MainForm : Form
         _outputDevice = new WaveOutEvent();
         _currentReader?.Dispose();
         _currentReader = null;
-        while (!_mediaChunks![_currentChunkIndex]) await Task.Delay(100);
+        while (!_mediaChunks![_currentChunkIndex]) await Task.Delay(10);
         if (_nextReader is null) _currentReader = new WaveFileReader($"TempDownloads/{_mediaId}/{_currentChunkIndex}");
         else
         {
